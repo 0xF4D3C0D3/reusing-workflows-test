@@ -1,0 +1,68 @@
+name: build and push to ecr
+
+on:
+  workflow_call:
+    inputs:
+      AWS_ROLE_ARN:
+        required: false
+        type: string
+      REPO_NAME:
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      AWS_ROLE_ARN:
+        required: false
+        type: string
+      REPO_NAME:
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ inputs.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-1
+
+      - name: login to AWS ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: set up docker buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: checkout repository code
+        uses: actions/checkout@v3
+
+      - name: set REGISTRY_IMAGE and TAG env var
+        run: |
+          echo "XX ${{ inputs.REPO_NAME }} YY"
+          # to avoid `repository name must be lowercase` error when you have uppercase in your name
+          REPO_NAME="${{ inputs.REPO_NAME }}"
+          echo REGISTRY_IMAGE=$(echo "${{ steps.login-ecr.outputs.registry }}/$REPO_NAME" | tr '[A-Z]' '[a-z]') >> $GITHUB_ENV
+          
+          # / is not allowed in docker tags
+          echo TAG=$(echo "${{ github.ref_name }}-${{ github.run_id }}" | tr '/' '_') >> $GITHUB_ENV
+          echo TAG_LATEST=$(echo "${{ github.ref_name }}-latest" | tr '/' '_') >> $GITHUB_ENV
+
+      - name: build and push images
+        uses: docker/build-push-action@v3
+        with:
+          tags: |
+            ${{ env.REGISTRY_IMAGE }}:${{ env.TAG }}
+            ${{ env.REGISTRY_IMAGE }}:${{ env.TAG_LATEST }}
+          push: true
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-from: type=gha,scope=${{ github.workflow }}
+          cache-to: type=gha,scope=${{ github.workflow }}
+          
