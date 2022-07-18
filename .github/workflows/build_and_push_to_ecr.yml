@@ -4,18 +4,10 @@ on:
   workflow_call:
     inputs:
       AWS_ROLE_ARN:
-        required: false
+        required: true
         type: string
       REPO_NAME:
-        required: false
-        type: string
-  workflow_dispatch:
-    inputs:
-      AWS_ROLE_ARN:
-        required: false
-        type: string
-      REPO_NAME:
-        required: false
+        required: true
         type: string
 
 permissions:
@@ -46,13 +38,16 @@ jobs:
 
       - name: set REGISTRY_IMAGE and TAG env var
         run: |
-          echo "XX ${{ inputs.REPO_NAME }} YY"
-          # to avoid `repository name must be lowercase` error when you have uppercase in your name
           REPO_NAME="${{ inputs.REPO_NAME }}"
+          REPO_NAME="${REPO_NAME:-$(echo "${{ github.repository }}" | awk -F/ '{print $2}' )}"
+        
+          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-8)
+        
+          # to avoid `repository name must be lowercase` error when you have uppercase in your name
           echo REGISTRY_IMAGE=$(echo "${{ steps.login-ecr.outputs.registry }}/$REPO_NAME" | tr '[A-Z]' '[a-z]') >> $GITHUB_ENV
           
           # / is not allowed in docker tags
-          echo TAG=$(echo "${{ github.ref_name }}-${{ github.run_id }}" | tr '/' '_') >> $GITHUB_ENV
+          echo TAG=$(echo "${{ github.ref_name }}-$SHORT_SHA-${{ github.run_id }}" | tr '/' '_') >> $GITHUB_ENV
           echo TAG_LATEST=$(echo "${{ github.ref_name }}-latest" | tr '/' '_') >> $GITHUB_ENV
 
       - name: build and push images
