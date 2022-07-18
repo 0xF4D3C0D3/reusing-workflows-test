@@ -4,10 +4,18 @@ on:
   workflow_call:
     inputs:
       AWS_ROLE_ARN:
+        description: 'Github Action이 AWS 자원에 접근할 때 필요한 Role의 arn'
         required: true
         type: string
-      REPO_NAME:
-        required: true
+      AWS_REGION:
+        description: 'AWS 리전'
+        default: 'ap-northeast-1'
+        required: false
+        type: string
+      ECR_REPO_NAME:
+        description: 'ECR 레포 이름. Github 레포와 같다면 빈값을 사용'
+        default: ''
+        required: false
         type: string
 
 permissions:
@@ -23,7 +31,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: ${{ inputs.AWS_ROLE_ARN }}
-          aws-region: ap-northeast-1
+          aws-region: ${{ inputs.AWS_REGION }}
 
       - name: login to AWS ECR
         id: login-ecr
@@ -38,7 +46,7 @@ jobs:
 
       - name: set REGISTRY_IMAGE and TAG env var
         run: |
-          REPO_NAME="${{ inputs.REPO_NAME }}"
+          REPO_NAME="${{ inputs.ECR_REPO_NAME }}"
           REPO_NAME="${REPO_NAME:-$(echo "${{ github.repository }}" | awk -F/ '{print $2}' )}"
         
           SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-8)
